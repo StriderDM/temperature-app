@@ -1,5 +1,5 @@
 #include "converter.h"
-#include <QtDebug>
+//#include <QtDebug>
 #include <cmath>
 
 Converter::Converter(QObject *parent) : QObject(parent) {}
@@ -30,7 +30,7 @@ double Converter::convert(QString value, int action)
         case 3 : retVal = convert_to_celcius(val); break;
         case 4 : retVal = convert_to_kelvin(val,true); break;
         case 5 : retVal = convert_to_fahrenheit(val); break;
-        case 6 : retVal = convert_to_celcius(convert_to_kelvin(val,true)); break;
+        case 6 : retVal = convert_to_kelvin(val,false); break;
         default: retVal = 0.0;
         }
     }
