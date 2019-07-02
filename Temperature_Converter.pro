@@ -92,20 +92,18 @@ macx {
 }
 
 win32 {
-    win32:CONFIG(release, debug|release): LIBS += -L$$PWD/../../temperature-ffi/target/x86_64-pc-windows-gnu/release/ -ltemperature_ffi
-    else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../../temperature-ffi/target/x86_64-pc-windows-gnu/debug/ -ltemperature_ffi
+    win32:CONFIG(release, debug|release): LIBS += -L$$PWD/../../temperature-ffi/target/release/ -ltemperature_ffi.dll
+    else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../../temperature-ffi/debug/ -ltemperature_ffi.dll
 
-    INCLUDEPATH += $$PWD/../../temperature-ffi/target/x86_64-pc-windows-gnu/debug
-    DEPENDPATH += $$PWD/../../temperature-ffi/target/x86_64-pc-windows-gnu/debug
+    INCLUDEPATH += $$PWD/../../temperature-ffi/target/debug
+    DEPENDPATH += $$PWD/../../temperature-ffi/target/debug
 }
 
 linux {
-    LIBS += -L$$PWD/../../temperature-ffi/target/x86_64-unknown-linux-musl/debug/ -ltemperature_ffi
+    unix:!macx: LIBS += -L$$PWD/../../temperature-ffi/target/debug/ -ltemperature_ffi
 
-    INCLUDEPATH += $$PWD/../../temperature-ffi/target/x86_64-unknown-linux-musl/debug
-    DEPENDPATH += $$PWD/../../temperature-ffi/target/x86_64-unknown-linux-musl/debug
-
-    PRE_TARGETDEPS += $$PWD/../../temperature-ffi/target/x86_64-unknown-linux-musl/debug/libtemperature_ffi.a
+    INCLUDEPATH += $$PWD/../../temperature-ffi/target/debug
+    DEPENDPATH += $$PWD/../../temperature-ffi/target/debug
 }
 
 
