@@ -1,0 +1,287 @@
+# VirtualBox - MacOS (Mojave) Virtual Machine Setup Guide
+
+## ISO Images
+
+Download MacOS Mojave from the Apple Store
+
+Create a script file and add the following to it:
+```bash
+#!/bin/bash
+
+usage() {
+	cat <<EOF
+Usage:
+$(basename "$0") "/path/to/Install macOS [Name].app" /path/to/output/directory
+
+Description:
+This script uses a macOS 10.12 and later installer application to create a .dmg disk image file suitable for use
+with virtualization software like VMware or Parallels. The .dmg disk image file will be named as follows:
+
+macOS_[OS Version Number Here]_installer.dmg.
+
+Optional:
+
+Script can also create a .iso disk image file. The .iso disk image file will be named as follows:
+
+macOS_[OS Version Number Here]_installer.iso.
+
+Requirements:
+
+Compatible macOS installer application
+Account with the ability to run commands using sudo, to allow specific functions to run with root privileges.
+
+EOF
+}
+
+# Provide custom colors in Terminal for status and error messages
+
+msg_status() {
+	echo -e "\033[0;32m-- $1\033[0m"
+}
+msg_error() {
+	echo -e "\033[0;31m-- $1\033[0m"
+}
+
+admin_check() {
+    # Check that the script is being run by an account with admin rights
+    if [[ -z $(id -nG | grep -ow admin) ]]; then
+        msg_error "This script will need to use sudo to run specific functions"
+        msg_error "using root privileges. The $(id -nu) account does not have"
+        msg_error "administrator rights associated with it, so it will not be"
+        msg_error "able to use sudo."
+        echo ""
+        msg_error "Script will now exit."
+        msg_error "Please try running this script again using an admin account."
+        echo ""
+        exit 4 # Running as standard account without sudo rights.
+    fi
+}
+
+admin_check
+
+# Script will prompt user if they want an additional image in .iso format.
+
+echo "Do you also want an .iso disk image?"
+select yn in "Yes" "No"; do
+	case $yn in
+		Yes) ISO=1; msg_status "Additional disk image will be created in .iso format. Proceeding..."; break;;
+		No) msg_status "Additional disk image will not be created in .iso format. Proceeding..."; break;;
+	esac
+done
+
+install_esd="$1"
+
+if [[ -z "$1" ]] || [[ ! -d "$1" ]]; then
+    msg_error "The path to the macOS installer application is required as the first argument."
+    usage
+	exit 1
+fi
+
+if [[ -z "$2" ]] || [[ ! -d "$2" ]]; then
+    msg_error "An output directory is required as the second argument."
+    usage
+	exit 1
+else
+	output_directory="$2"
+fi
+
+# Remove trailing slashes from input paths if needed
+
+install_esd=${install_esd%%/}
+output_directory=${output_directory%%/}
+
+if [[ -d "$install_esd" ]] && [[ -e "$install_esd/Contents/SharedSupport/InstallESD.dmg" ]]; then
+   msg_status "macOS Installer application detected at the following path: $install_esd"
+else
+   msg_error "macOS Installer application not detected."
+   usage
+   exit 1
+fi
+
+installer_version=$(/usr/libexec/PlistBuddy -c 'Print :System\ Image\ Info:version' "$install_esd/Contents/SharedSupport/InstallInfo.plist")
+installer_version_digits_only=$(echo $installer_version | awk -F'[^0-9]*' '$0=$1$2$3')
+installer_qualifies=$(echo $installer_version_digits_only | head -c4)
+random_disk_image_name=$(uuidgen)
+installer_mounted_volume=$(echo "$install_esd" | grep -o 'Install.*' | sed 's/....$//')
+
+if [[ "$installer_qualifies" -lt 1012 ]]; then
+    msg_error "This script supports building installer disk image files for macOS 10.12.0 and later."
+    msg_error "Please use an installer app which installs macOS 10.12.0 or later."
+    usage
+	exit 1
+else
+    msg_status "Installer application for macOS $installer_version detected. Proceeding...."
+fi
+
+if [[ -x "$install_esd/Contents/Resources/createinstallmedia" ]]; then
+   msg_status "$install_esd/Contents/Resources/createinstallmedia tool detected. Proceeding...."
+else
+   msg_error "The createinstallmedia tool from $install_esd/Contents/Resources is not executable or is missing!"
+   msg_error "This macOS installer application may not be complete or working properly."
+   exit 1
+fi
+
+# Creating a temporary disk image of 8 GB space in /tmp/ and mounting it.
+# For maximum compatibility, the file system on the disk image is set to use
+# Journaled HFS+.
+
+disk_image_size=8
+disk_image_filesystem="HFS+J"
+
+msg_status "Creating empty $disk_image_size GB disk image at the following location: /tmp/$random_disk_image_name.cdr"
+hdiutil create -o /tmp/"$random_disk_image_name".cdr -size "$disk_image_size"g -layout SPUD -fs "$disk_image_filesystem"
+msg_status "Mounting disk image at /Volumes/$random_disk_image_name"
+hdiutil attach /tmp/"$random_disk_image_name".cdr.dmg -noverify -mountpoint /Volumes/"$random_disk_image_name"
+
+# The createinstallmedia tool requires root privileges to run, so we'll need to request
+# the password of the logged-in user if not already running the script as root.
+
+if [[ $EUID -ne 0 ]]; then
+   msg_status "You will be prompted for your password now, to run commands with root privileges"
+   msg_status "using sudo. This will allow the createinstallmedia tool to copy installer files"
+   msg_status "onto /Volumes/$random_disk_image_name."
+fi
+
+# The createinstallmedia tool requires different options, depending on which OS installer's createinstallmedia tool is being used.
+
+if [[ "$installer_qualifies" -eq "1012" ]] || [[ "$installer_qualifies" -eq "1013" ]]; then
+   sudo "$install_esd/Contents/Resources/createinstallmedia" --volume /Volumes/"$random_disk_image_name" --applicationpath "$install_esd" --nointeraction
+else
+   sudo "$install_esd/Contents/Resources/createinstallmedia" --volume /Volumes/"$random_disk_image_name" --nointeraction
+fi
+
+# Move and rename the installer disk image to match the following standard:
+#
+# macOS_[OS Version Number Here]_installer
+
+mv /tmp/"$random_disk_image_name".cdr.dmg "$output_directory"/macOS_"$installer_version_digits_only"_installer.dmg
+msg_status "Unmounting macOS installer disk image."
+hdiutil detach "/Volumes/$installer_mounted_volume"
+
+output_dmg="$output_directory"/macOS_"$installer_version_digits_only"_installer.dmg
+
+if [[ "$ISO" == 1 ]]; then
+
+    # Convert the installer disk image to .iso format. This will create a separate copy
+    # of the installer disk image.
+
+    msg_status "Converting macOS installer disk image to .iso format."
+    hdiutil convert "$output_directory"/macOS_"$installer_version_digits_only"_installer.dmg -format UDTO -o "$output_directory"/macOS_"$installer_version_digits_only"_installer.iso
+
+    # Rename the converted installer disk image copy so that the filename ends in ".iso"
+
+    mv "$output_directory"/macOS_"$installer_version_digits_only"_installer.iso.cdr "$output_directory"/macOS_"$installer_version_digits_only"_installer.iso
+    output_iso="$output_directory"/macOS_"$installer_version_digits_only"_installer.iso
+fi
+
+
+# Display a message that the build process has finished and include the location of the disk image file.
+
+msg_status "Building process complete."
+
+if [[ -f "$output_dmg" ]]; then
+  msg_status "Built .dmg disk image file is available at $output_dmg"
+else
+  msg_error "Build failure! Built .dmg disk image file not found!"
+fi
+
+if [[ "$ISO" == 1 ]]; then
+  if [[ -f "$output_iso" ]]; then
+    msg_status "Built .iso disk image file is available at $output_iso"
+  else
+    msg_error "Build failure! Built .iso disk image file not found! "
+  fi
+fi
+```
+Run the script in terminal with the following command, select ISO image when prompted:
+```bash
+sudo {path}/create_macos_vm_install_dmg.sh "/Applications/Install macOS Mojave.app" {path_out}
+```
+>Note: \
+>{path} needs to be replaced with the path to the script and {path_out} needs to be replaced with the path to the output directory
+
+This will yield an install disk for MacOS. This will be referred to as the installation disk.
+
+Then download TheTechBlogger_APFSEfi.iso from [here](https://drive.google.com/open?id=12DvJbjLmgmP9_no2NUDAvutnjr2i3UMT). This will be referred to as the Driver Disk.
+
+## Virtual Machine
+
+Create a new virtualbox virtual machine:
+
+| Type     | Version          | RAM  |Disk |Processors  | Video Ram | Floppy Drive
+|---       | ---              | ---  |---  |---         | ---			 | ---
+| Mac OS X | Mac OS X (64-bit)| 4096+| VDI | 2+         | 128	     | Disabled
+
+Mount the installation disk in storage.
+
+Run the following at the terminal:
+```bash
+VBoxManage.exe modifyvm "{name}" --cpuidset 00000001 000306a9 04100800 7fbae3ff bfebfbff
+VBoxManage setextradata "{name}" "VBoxInternal/Devices/efi/0/Config/DmiSystemProduct" "MacBookPro11,3"
+VBoxManage setextradata "{name}" "VBoxInternal/Devices/efi/0/Config/DmiSystemVersion" "1.0"
+VBoxManage setextradata "{name}" "VBoxInternal/Devices/efi/0/Config/DmiBoardProduct" "Mac-2BD1B31983FE1663"
+VBoxManage setextradata "{name}" "VBoxInternal/Devices/smc/0/Config/DeviceKey" "ourhardworkbythesewordsguardedpleasedontsteal(c)AppleComputerInc"
+VBoxManage setextradata "{name}" "VBoxInternal/Devices/smc/0/Config/GetKeyFromRealSMC" 1
+```
+>Note:\
+>{name} must be replaced with the name of your virtual machine.
+
+## MacOS Installation
+
+Boot the machine and after selecting language select Disk Utility.
+
+Select the hard disk for the machine and erase it with the following:
+
+| Format | Scheme
+| --- | ---
+| Mac OS Extended (Journaled) | GUID Partition Map
+
+Exit Disk Utility and proceed with the installation. Once this is done and the machine returns back to the installation, power down the virtual machine.
+Eject the installation disk, mount the Driver disk and boot the machine back up.
+
+You will go to the Shell, enter the following commands:
+```Shell
+fs1:
+cd "macOS Install Data"
+cd "Locked Files"
+cd "Boot Files"
+boot.efi
+```
+You will then return back to the installer where you can finish the installation.
+
+When the machine reboots you will end up the Shell again:
+```bash
+fs0:
+cd EFI
+copy -r fs1:\EFI\drivers
+```
+>Note:\
+>fs1: may be different (i.e Mine was fs2:)
+
+Reboot the machine and come back to the terminal:
+```bash
+edit startup.nsh
+```
+
+You will now be in a text editor, type the following:
+```bash
+echo -off
+load fs0:\EFI\drivers\apfs.efi
+load fs0:\EFI\drivers\AppleUiSupport.efi
+load fs0:\EFI\drivers\ApfsDriverLoader.efi
+map -r
+fs2:
+cd System\Library\CoreServices\
+boot.efi
+```
+>Note:\
+>fs2: may be different (i.e Mine was fs4:)
+
+Press `Control+Q` and then press `Y`.\
+Type `exit` and then hit `enter` to continue.
+
+The machine will reboot a final time and then you will proceed to MacOS.
+>Note:\
+>Create a local account for the machine
+
+Finally, when you decide shut down the machine, eject the Driver disk.

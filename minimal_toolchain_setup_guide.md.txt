@@ -1,0 +1,175 @@
+# Minimal Setup Guide - Virtual Machine Build Toolchain for Qt5
+
+# Virtual Machines
+
+## Macintosh
+Install macOS 10.14 (Mojave)
+
+Install Xcode 10.2 from the Apple Store then open Xcode and accept license. Once done check command line tools are enabled.
+
+Install Java 8 JDK from Oracle
+
+Install Android Studio.
+When opening Android Studio, select Configure and then SDK Manager.
+Under the SDK Platforms tab, select "Show Package Details" and proceed to download the Android SDK Platform from the latest down to Platform 21 (i.e Lollipop).
+Then switch to SDK tools and download the NDK.
+
+Add a file called arm-linux-androideabi-clang at $NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin with the contents :
+```bash
+if [ "$1" != "-cc1" ]; then
+    `dirname $0`/clang --target=armv-linux-androideabi{android_platform_version} -fno-addrsig "$@"
+else
+    # Target is already an argument.
+    `dirname $0`/clang "$@"
+fi
+```
+> Note: \
+>$NDK is the path to the Android NDK. \
+>{android_platform_version} needs to replace with the version you intend to build for, e.g 21
+
+Then for each of the target architectures in $NDK/sources/cxx-stl/llvm-libc++/libs/:
++ There will be multiple libc++.so files for each platform version in the target architecture subdirectory.
++ Select the one for the platform you intend to build for (i.e Platform 21 = libc++.so.21), duplicate it and rename it to libc++.so
+
+Install Qt5 with the following additional modules from 5.13.0:
+  + macOS,
+  + Android (select all options),
+  + iOS,
+  + Charts,
+  + Data Visualizations,
+  + Keyboard,
+  + Purchasing,
+  + Network Authorization,
+  + WebGL,
+  + Installer Framework 3.1
+
+Open Qt-Creator. From the Tools menu, select the External sub-menu and the Configure.
+In the Preferences window select Devices. Configure the path to the Android SDK and NDK.
+
+> Note:
+>
+> If you run into the problem below when building a project for iPhone Simulator (\*\*\* is replaced with your app name) that fits the error message below:
+>
+>>CopyPNGFile Debug-iphonesimulator/\*\*\*.app/Default-568h@2x.png \*\*\*.xcodeproj/Default-568h@2x.png
+>>
+>The solution is to :
+>>+ Open the file /Applications/Xcode.app/Contents/Developer/usr/bin/copypng
+>> + Find
+>>```bash
+>>my $PNGCRUSH = `xcrun -f pngcrush`;
+>>```
+>> and change it to:
+>>```bash
+>> my $PNGCRUSH = `xcrun -find pngcrush`;
+>>```
+
+Run the following commands in the terminal:
+```bash
+curl --proto '=https' --tls1.2 -sSf https://sh.rustup.rs | sh
+```
+In a new terminal run the following commands:
+```bash
+rustup target add aarch64-apple-ios
+rustup target add aarch64-linux-android
+rustup target add arm-linux-androideabi
+rustup target add armv7-apple-ios
+rustup target add armv7s-apple-ios
+rustup target add armv7-linux-android
+rustup target add i386-apple-ios
+rustup target add i686-linux-android
+rustup target add i686-apple-darwin
+rustup target add x86_64-apple-darwin
+rustup target add x86_64-apple-ios
+rustup target add x86_64-linux-android
+Cargo install cargo-lipo
+cargo install --force cbindgen
+```
+
+Install Atom
+
+Install GitHub Desktop
+
+## Linux:
+
+Install Ubuntu Desktop 10.04.2 LTS
+
+Run the following from the terminal:
+```bash
+sudo apt-get install build-essential
+sudo apt-get install libfontconfig1
+sudo apt-get install mesa-common-dev
+sudo apt-get install libglu1-mesa-dev -y
+```
+Download Qt5
+Run the following from the terminal:
+```bash
+cd Downloads
+chmod +x qt-unified-linux-x64-*.*.*-online.run
+./qt-unified-linux-x64-*.*.*-online.run
+```
+>Substitute \*.\*.\* with the installer version
+
+Install Qt5 with the following modules from 5.13.0:
++ gcc
++ charts
++ Charts,
++ Data Visualizations,
++ Keyboard,
++ Purchasing,
++ Network Authorization,
++ WebGL,
++ Debug Information files
++ Installer Framework 3.1
+
+Run the following at the terminal:
+```bash
+sudo apt install curl
+```
+In a new terminal run the following commands:
+```bash
+curl --proto '=https' --tls1.2 -sSf https://sh.rustup.rs | sh
+```
+In a new terminal run the following commands:
+```bash
+rustup target add i686-unknown-linux-gnu
+cargo install --force cbindgen
+sudo apt-get install git
+sudo snap install github-desktop --beta --classic
+sudo snap install atom --classic
+```
+
+## Windows
+Install Windows 10 Professional (10.0.18362)
+
+Install MSVC2017 Community Edition
+  + C++ Workload selection
+  + Additional modules
+    + Tools for CMAKE and Linux,
+    + Universal C Runtime,
+    + Git,
+    + Github Extension
+
+Install GitHub Desktop
+
+Install Qt5 with the following modules from 5.13.0:
+  + mingw7.3 (select all options),
+  + msvc2017 (select all options),
+  + Charts,
+  + Data visualizations,
+  + Keyboard,
+  + Purchasing,
+  + Network Authorization
+  + Webgl,
+  + Debug Information Files,
+  + Installer Framework 3.1,
+  + Debugging Tools
+
+Install Rust (rustup-init.exe)
+
+Run the following from the command line:
+```bash
+rustup target add i686-pc-windows-msvc
+cargo install --force cbindgen
+```
+
+Install Atom
